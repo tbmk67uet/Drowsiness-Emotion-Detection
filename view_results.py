@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_pdf import PdfPages
 import tkinter as tk
 from tkinter import ttk
 
@@ -154,3 +155,16 @@ def view_results_from_csv(tab_widget, csv_path):
     ax4.tick_params(axis='x', rotation=45)
     fig4.tight_layout()
     add_plot(fig4, scrollable_frame)
+
+def export_figure_to_pdf(tab_widget, csv_path):
+    from matplotlib.backends.backend_pdf import PdfPages
+    import matplotlib._pylab_helpers
+
+    figures = [manager.canvas.figure for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()]
+    if not figures:
+        return
+
+    pdf_filename = csv_path.replace(".csv", "_result.pdf")
+    with PdfPages(pdf_filename) as pdf:
+        for fig in figures:
+            pdf.savefig(fig)
