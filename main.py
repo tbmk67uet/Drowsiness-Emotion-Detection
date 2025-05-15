@@ -24,6 +24,8 @@ log_file = None
 log_writer = None
 log_path = None
 frame_label = None
+countdown_seconds = None
+countdown_label = None
 drowsy_display_frames = 0
 yawn_display_frames = 0
 alarm_status = False
@@ -70,11 +72,15 @@ def lip_distance(shape):
     return abs(np.mean(top_lip, axis=0)[1] - np.mean(low_lip, axis=0)[1])
 
 def start_session():
-    global app_running, vs, log_file, log_writer, log_path, COUNTER, YAWN_COUNTER, alarm_status, alarm_status2
+    global app_running, vs, log_file, log_writer, log_path, countdown_seconds, COUNTER, YAWN_COUNTER, alarm_status, alarm_status2
     if app_running:
         return
     app_running = True
     tab_control.select(tab1)
+
+    btn_start.pack_forget()
+    timer_label.pack_forget()
+    timer_entry.pack_forget()
 
     os.makedirs("logs", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -89,7 +95,29 @@ def start_session():
     alarm_status = False
     alarm_status2 = False
 
+    timer_val = timer_entry.get()
+    countdown_seconds = int(timer_val) * 60 if timer_val.strip().isdigit() else None
+    countdown_label.place(relx=0.01, rely=0.95, anchor='sw')
+
+    if countdown_seconds:
+        countdown_label.place(relx=0.01, rely=0.95, anchor='sw')
+        update_countdown()
+    else:
+        countdown_label.place_forget()
+
     update_video()
+
+def update_countdown():
+    global countdown_seconds, countdown_label, app_running
+
+    if countdown_seconds is not None and app_running:
+        mins, secs = divmod(countdown_seconds, 60)
+        countdown_label.config(text=f"⏳ {mins:02}:{secs:02}")
+        if countdown_seconds > 0:
+            countdown_seconds -= 1
+            tab1.after(1000, update_countdown)
+        else:
+            end_session()
 
 def end_session():
     global app_running, vs, log_file, log_path
@@ -100,6 +128,11 @@ def end_session():
         log_file.close()
     tab_control.select(tab2)
     view_results_from_csv(tab2, log_path)
+
+    btn_start.pack(pady=10)
+    timer_label.pack()
+    timer_entry.pack()
+    countdown_label.place_forget()
 
 def update_video():
     global app_running, vs, frame_label, log_writer, drowsy_display_frames, yawn_display_frames, alarm_status, alarm_status2, COUNTER, YAWN_COUNTER
@@ -197,8 +230,17 @@ tab_control.pack(expand=1, fill='both')
 btn_start = tk.Button(tab1, text="▶️ Start Session", command=start_session, font=("Arial", 14))
 btn_start.pack(pady=10)
 
+timer_label = ttk.Label(tab1, text="⏱️ Thời gian (phút, để trống nếu không giới hạn):", font=("Arial", 10))
+timer_label.pack()
+timer_entry = ttk.Entry(tab1)
+timer_entry.pack(pady=5)
+
 btn_stop = tk.Button(tab1, text="⏹️ End Session", command=end_session, font=("Arial", 14))
 btn_stop.pack(pady=10)
+
+countdown_label = tk.Label(tab1, font=("Arial", 14), fg="red")
+countdown_label.place(relx=0.01, rely=0.95, anchor='sw')
+countdown_label.place_forget()
 
 frame_label = tk.Label(tab1)
 frame_label.pack(padx=10, pady=10)
