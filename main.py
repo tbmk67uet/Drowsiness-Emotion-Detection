@@ -1,4 +1,4 @@
-import tkinter as tk
+import customtkinter as ctk
 from tkinter import ttk
 from threading import Thread
 from datetime import datetime
@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 import csv
 import numpy as np
 import time
-from view_results import view_results_from_csv
+from view_results import view_results_from_csv, export_figure_to_pdf
 
 from keras.models import load_model
 from keras.utils import img_to_array
@@ -28,6 +28,15 @@ alarm_status = False
 alarm_status2 = False
 COUNTER = 0
 YAWN_COUNTER = 0
+paused = False
+start_time = None
+paused_time = 0
+pause_start = None
+
+
+
+
+
 
 # === INIT MODELS ===
 mixer.init()
@@ -72,7 +81,10 @@ def start_session():
     if app_running:
         return
     app_running = True
-    tab_control.select(tab1)
+    global start_time
+    start_time = time.time()
+
+    tabview.set("\ud83d\udcf7 Start Session")
 
     os.makedirs("logs", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -88,6 +100,8 @@ def start_session():
     alarm_status2 = False
 
     update_video()
+    update_timer()
+
 
 def end_session():
     global app_running, vs, log_file, log_path
@@ -96,13 +110,47 @@ def end_session():
         vs.release()
     if log_file:
         log_file.close()
-    tab_control.select(tab2)
+    tabview.set("\ud83d\udcca View Current Result")
     view_results_from_csv(tab2, log_path)
+
+def pause_session():
+    global paused, pause_start, start_time, paused_time
+    if not app_running:
+        return
+
+    paused = not paused
+    if paused:
+        pause_start = time.time()
+        pause_btn.configure(text="▶️ Resume Session", fg_color="#4CAF50", hover_color="#388E3C")
+    else:
+        paused_duration = time.time() - pause_start
+        start_time += paused_duration  # Bù thời gian đã tạm dừng
+        pause_btn.configure(text="⏸️ Pause Session", fg_color="#FFC107", hover_color="#FFA000")
+
+
+
+def update_timer():
+    if not app_running:
+        return
+    if paused:
+        tab1.after(1000, update_timer)
+        return
+
+    elapsed = int(time.time() - start_time - 2)
+    minutes = elapsed // 60
+    seconds = elapsed % 60
+    time_label.configure(text=f"🕒 {minutes:02d}:{seconds:02d}")
+    tab1.after(1000, update_timer)
+
 
 def update_video():
     global app_running, vs, frame_label, log_writer, alarm_status, alarm_status2, COUNTER, YAWN_COUNTER
 
     if not app_running:
+        return
+
+    if paused:
+        tab1.after(100, update_video)  # vẫn tiếp tục gọi lại nhưng không xử lý
         return
 
     ret, frame = vs.read()
@@ -144,8 +192,7 @@ def update_video():
             if YAWN_COUNTER >= YAWN_CONSEC_FRAMES and not alarm_status2:
                 alarm_status2 = True
                 Thread(target=sound2.play, daemon=True).start()
-                cv2.putText(frame, "YAWN ALERT!", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(frame, "YAWN ALERT!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         else:
             YAWN_COUNTER = 0
             alarm_status2 = False
@@ -167,53 +214,64 @@ def update_video():
 
     tab1.after(10, update_video)
 
-# === GUI ===
-root = tk.Tk()
+# === MODERN UI ===
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("blue")
+
+root = ctk.CTk()
 root.title("Focus Tracker App")
-root.geometry("900x650")
+root.geometry("1000x700")
 
-tab_control = ttk.Notebook(root)
-tab1 = ttk.Frame(tab_control)
-tab2 = ttk.Frame(tab_control)
-tab3 = ttk.Frame(tab_control)
+tabview = ctk.CTkTabview(root)
+tabview.pack(expand=True, fill="both", padx=20, pady=20)
 
-tab_control.add(tab1, text='📷 Start Session')
-tab_control.add(tab2, text='📊 View Current Result')
-tab_control.add(tab3, text='📁 Past Sessions')
-tab_control.pack(expand=1, fill='both')
 
-# Tab 1: Start Session
-btn_start = tk.Button(tab1, text="▶️ Start Session", command=start_session, font=("Arial", 14))
-btn_start.pack(pady=10)
+tab1 = tabview.add("\ud83d\udcf7 Start Session")
+tab2 = tabview.add("\ud83d\udcca View Current Result")
+tab3 = tabview.add("\ud83d\udcc1 Export to Pdf")
+tab4 = tabview.add("\ud83d\udcc1 Past Sessions")
 
-btn_stop = tk.Button(tab1, text="⏹️ End Session", command=end_session, font=("Arial", 14))
-btn_stop.pack(pady=10)
 
-frame_label = tk.Label(tab1)
-frame_label.pack(padx=10, pady=10)
 
-# Tab 3: List of past logs
+# Tab 1
+start_btn = ctk.CTkButton(tab1, text="▶️ Start Session", command=start_session, font=("Arial", 16))
+start_btn.pack(pady=10)
+
+stop_btn = ctk.CTkButton(tab1, text="⏹️ End Session", command=end_session, font=("Arial", 16), fg_color="#E53935", hover_color="#C62828")
+stop_btn.pack(pady=10)
+
+pause_btn = ctk.CTkButton(
+    tab1, text="⏸️ Pause Session", command=pause_session,
+    font=("Arial", 16), fg_color="#FFC107", hover_color="#FFA000"
+)
+pause_btn.pack(pady=10)
+
+time_label = ctk.CTkLabel(tab1, text="🕒 00:00", font=("Arial", 16))
+time_label.pack(pady=10)
+
+frame_label = ctk.CTkLabel(tab1, text="", width=700, height=500)
+frame_label.pack(pady=10)
+
+
+# Tab 4
+log_listbox = ctk.CTkOptionMenu(tab4, values=["No logs found"], command=lambda choice: view_results_from_csv(tab2, os.path.join("logs", choice)))
+log_listbox.pack(pady=20)
+
+# Tab 3
+export_pdf_btn = ctk.CTkButton(tab3, text="📄 Xuất Kết Quả Ra PDF", command=lambda: export_figure_to_pdf(tab2, log_path), font=("Arial", 16))
+export_pdf_btn.pack(pady=10)
+
 def list_logs():
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
     logs = sorted(os.listdir("logs"))
-    listbox.delete(0, tk.END)
-    for log in logs:
-        listbox.insert(tk.END, log)
+    if logs:
+        log_listbox.configure(values=logs)
+    else:
+        log_listbox.configure(values=["No logs found"])
 
-def on_log_select(event):
-    selection = event.widget.curselection()
-    if selection:
-        index = selection[0]
-        filename = event.widget.get(index)
-        filepath = os.path.join("logs", filename)
-        tab_control.select(tab2)
-        view_results_from_csv(tab2, filepath)
-
-listbox = tk.Listbox(tab3, width=80)
-listbox.pack(pady=20)
-listbox.bind('<<ListboxSelect>>', on_log_select)
-
-btn_refresh = tk.Button(tab3, text="🔄 Refresh List", command=list_logs)
-btn_refresh.pack()
+refresh_btn = ctk.CTkButton(tab4, text="🔄 Refresh Logs", command=list_logs)
+refresh_btn.pack()
 
 list_logs()
 
