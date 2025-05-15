@@ -30,13 +30,16 @@ drowsy_display_frames = 0
 yawn_display_frames = 0
 alarm_status = False
 alarm_status2 = False
+alarm_status3 = False
 COUNTER = 0
 YAWN_COUNTER = 0
+FACE_MISSING_COUNTER = 0
 
 # === INIT MODELS ===
 mixer.init()
 sound1 = mixer.Sound('wake_up.mp3')
 sound2 = mixer.Sound('alert.mp3')
+sound3 = mixer.Sound('Where Are You, Sir_.mp3')
 
 emotion_model = load_model('model.h5')
 emotion_labels = ['Angry','Disgust','Fear','Happy','Neutral', 'Sad', 'Surprise']
@@ -49,6 +52,7 @@ EYE_AR_THRESH = 0.25
 EYE_AR_CONSEC_FRAMES = 10
 YAWN_THRESH = 30
 YAWN_CONSEC_FRAMES = 15
+FACE_MISSING_THRESHOLD = 50
 
 # === FUNCTIONS ===
 def eye_aspect_ratio(eye):
@@ -72,7 +76,7 @@ def lip_distance(shape):
     return abs(np.mean(top_lip, axis=0)[1] - np.mean(low_lip, axis=0)[1])
 
 def start_session():
-    global app_running, vs, log_file, log_writer, log_path, countdown_seconds, COUNTER, YAWN_COUNTER, alarm_status, alarm_status2
+    global app_running, vs, log_file, log_writer, log_path, countdown_seconds, COUNTER, YAWN_COUNTER, alarm_status, alarm_status2, alarm_status3
     if app_running:
         return
     app_running = True
@@ -87,13 +91,15 @@ def start_session():
     log_path = os.path.join("logs", f"emotion_log_{timestamp}.csv")
     log_file = open(log_path, mode="w", newline="")
     log_writer = csv.writer(log_file)
-    log_writer.writerow(["Timestamp", "Emotion", "EAR", "YawnDistance", "DrowsinessAlert", "YawnAlert"])
+    log_writer.writerow(["Timestamp", "Emotion", "EAR", "YawnDistance", "DrowsinessAlert", "YawnAlert", "FaceMissing"])
 
     vs = cv2.VideoCapture(0)
     COUNTER = 0
     YAWN_COUNTER = 0
+    FACE_MISSING_COUNTER = 0
     alarm_status = False
     alarm_status2 = False
+    alarm_status3 = False
 
     timer_val = timer_entry.get()
     countdown_seconds = int(timer_val) * 60 if timer_val.strip().isdigit() else None
@@ -135,7 +141,7 @@ def end_session():
     countdown_label.place_forget()
 
 def update_video():
-    global app_running, vs, frame_label, log_writer, drowsy_display_frames, yawn_display_frames, alarm_status, alarm_status2, COUNTER, YAWN_COUNTER
+    global app_running, vs, frame_label, log_writer, drowsy_display_frames, yawn_display_frames, alarm_status, alarm_status2, alarm_status3, COUNTER, YAWN_COUNTER, FACE_MISSING_COUNTER
 
     if not app_running:
         return
@@ -147,6 +153,18 @@ def update_video():
     frame = cv2.resize(frame, (500, 400))
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if len(faces) == 0:
+        FACE_MISSING_COUNTER += 1
+        cv2.putText(frame, "FACE NOT DETECTED!", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        if FACE_MISSING_COUNTER == FACE_MISSING_THRESHOLD and not alarm_status3:
+            alarm_status3 = True
+            Thread(target=sound3.play, daemon=True).start()
+        log_writer.writerow([ts, "None", "-", "-", "No", "No", "Yes"])
+    else:
+        FACE_MISSING_COUNTER = 0
+        alarm_status3 = False
 
     for (x, y, w, h) in faces:
         face_gray = gray[y:y+h, x:x+w]

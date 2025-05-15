@@ -37,10 +37,12 @@ def view_results_from_csv(tab_widget, csv_path):
 
     # ========== Data loading and processing ==========
     df = pd.read_csv(csv_path)
+    df['Emotion'] = df['Emotion'].fillna('').astype(str)
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     df['DrowsinessAlert'] = df['DrowsinessAlert'].astype(str) == 'Yes'
     df['YawnAlert'] = df['YawnAlert'].astype(str) == 'Yes'
     df['priority'] = (df['DrowsinessAlert'] | df['YawnAlert'] == 'Yes').astype(int)
+    df['FaceMissing'] = df['FaceMissing'].astype(str) == 'Yes'
     emotion_score_map = {
         'Happy': 2, 'Surprise': 1, 'Neutral': 1,
         'Sad': -1, 'Angry': -2, 'Fear': -2, 'Disgust': -3
@@ -118,9 +120,12 @@ def view_results_from_csv(tab_widget, csv_path):
 
     # 2. Tần suất cảm xúc
     fig2, ax2 = plt.subplots(figsize=(6, 4))
-    df['Emotion'].value_counts().plot(kind='bar', ax=ax2, color='skyblue')
-    ax2.set_title("Tần suất cảm xúc")
-    ax2.set_ylabel("Số lần")
+    ax2.plot(df['Timestamp'], ~df['FaceMissing'], color='blue', marker='o')
+    ax2.set_title("Trạng thái khuôn mặt trong khung hình")
+    ax2.set_yticks([0, 1])
+    ax2.set_yticklabels(['Mất mặt', 'Có mặt'])
+    ax2.tick_params(axis='x', rotation=45)
+    ax2.grid(True)
     fig2.tight_layout()
     add_plot(fig2, scrollable_frame)
 
