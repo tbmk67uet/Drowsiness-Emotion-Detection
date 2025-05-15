@@ -220,7 +220,12 @@ ctk.set_default_color_theme("blue")
 
 root = ctk.CTk()
 root.title("Focus Tracker App")
-root.geometry("1000x700")
+# Lấy kích thước màn hình
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+
+# Set kích thước cửa sổ gần full màn hình (trừ viền nhỏ)
+root.geometry(f"{screen_width}x{screen_height}+0+0")
 
 tabview = ctk.CTkTabview(root)
 tabview.pack(expand=True, fill="both", padx=20, pady=20)
