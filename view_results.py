@@ -45,12 +45,14 @@ def view_results_from_csv(tab_widget, csv_path):
     df['priority'] = (df['DrowsinessAlert'] | df['YawnAlert'] == 'Yes').astype(int)
     df['FaceMissing'] = df['FaceMissing'].astype(str) == 'Yes'
     emotion_score_map = {
-        'Happy': 2, 'Surprise': 1, 'Neutral': 1,
-        'Sad': -1, 'Angry': -2, 'Fear': -2, 'Disgust': -3
+        'Happy': 2, 'Surprise': 2, 'Neutral': 1,
+        'Sad': 0, 'Angry': -1, 'Fear': -2, 'Disgust': -3
     }
 
     def compute_focus_score(row):
-        if row['DrowsinessAlert']:
+        if row['FaceMissing']:
+            return -1
+        elif row['DrowsinessAlert']:
             return -3
         elif row['YawnAlert']:
             return -2
