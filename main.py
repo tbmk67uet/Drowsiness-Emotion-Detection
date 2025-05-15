@@ -24,6 +24,8 @@ log_file = None
 log_writer = None
 log_path = None
 frame_label = None
+drowsy_display_frames = 0
+yawn_display_frames = 0
 alarm_status = False
 alarm_status2 = False
 COUNTER = 0
@@ -41,8 +43,8 @@ face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
 landmark_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 # === METRICS ===
-EYE_AR_THRESH = 0.2
-EYE_AR_CONSEC_FRAMES = 20
+EYE_AR_THRESH = 0.25
+EYE_AR_CONSEC_FRAMES = 10
 YAWN_THRESH = 30
 YAWN_CONSEC_FRAMES = 15
 
@@ -100,7 +102,7 @@ def end_session():
     view_results_from_csv(tab2, log_path)
 
 def update_video():
-    global app_running, vs, frame_label, log_writer, alarm_status, alarm_status2, COUNTER, YAWN_COUNTER
+    global app_running, vs, frame_label, log_writer, drowsy_display_frames, yawn_display_frames, alarm_status, alarm_status2, COUNTER, YAWN_COUNTER
 
     if not app_running:
         return
@@ -134,21 +136,30 @@ def update_video():
             if COUNTER >= EYE_AR_CONSEC_FRAMES and not alarm_status:
                 alarm_status = True
                 Thread(target=sound1.play, daemon=True).start()
-                cv2.putText(frame, "DROWSINESS ALERT!", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                drowsy_display_frames = 30
         else:
             COUNTER = 0
             alarm_status = False
+
+        if drowsy_display_frames > 0:
+            cv2.putText(frame, "DROWSINESS ALERT!", (frame.shape[1] - 250, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            drowsy_display_frames -= 1
 
         if lip_dist > YAWN_THRESH:
             YAWN_COUNTER += 1
             if YAWN_COUNTER >= YAWN_CONSEC_FRAMES and not alarm_status2:
                 alarm_status2 = True
                 Thread(target=sound2.play, daemon=True).start()
-                cv2.putText(frame, "YAWN ALERT!", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                yawn_display_frames = 30
         else:
             YAWN_COUNTER = 0
             alarm_status2 = False
+
+        if yawn_display_frames > 0:
+            cv2.putText(frame, "YAWN ALERT!", (frame.shape[1] - 250, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            yawn_display_frames -= 1
 
         drowsy_flag = "Yes" if alarm_status else "No"
         yawn_flag = "Yes" if alarm_status2 else "No"

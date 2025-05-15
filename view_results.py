@@ -31,12 +31,16 @@ def view_results_from_csv(tab_widget, csv_path):
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
     # ========== Data loading and processing ==========
     df = pd.read_csv(csv_path)
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     df['DrowsinessAlert'] = df['DrowsinessAlert'].astype(str) == 'Yes'
     df['YawnAlert'] = df['YawnAlert'].astype(str) == 'Yes'
-
+    df['priority'] = (df['DrowsinessAlert'] | df['YawnAlert'] == 'Yes').astype(int)
     emotion_score_map = {
         'Happy': 2, 'Surprise': 1, 'Neutral': 1,
         'Sad': -1, 'Angry': -2, 'Fear': -2, 'Disgust': -3
@@ -71,9 +75,6 @@ def view_results_from_csv(tab_widget, csv_path):
         widget.pack(fill='both', expand=True)
 
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    df['DrowsinessAlert'] = df['DrowsinessAlert'].astype(str) == 'Yes'
-    df['YawnAlert'] = df['YawnAlert'].astype(str) == 'Yes'
-
     duration = (df['Timestamp'].max() - df['Timestamp'].min()).total_seconds()
 
     resample_interval = None
@@ -103,7 +104,7 @@ def view_results_from_csv(tab_widget, csv_path):
     else:
         df = df.reset_index()
 
-    df = df.sort_values('Timestamp')
+    df = df.sort_values(by=['Timestamp', 'priority'], ascending=[True, False])
     df = df.drop_duplicates(subset='Timestamp', keep='first')
 
     # 1. Cảm xúc theo thời gian
@@ -125,13 +126,18 @@ def view_results_from_csv(tab_widget, csv_path):
 
     # 3. Cảnh báo buồn ngủ/ngáp
     fig3, ax3 = plt.subplots(figsize=(10, 4))
-    ax3.plot(df['Timestamp'], df['DrowsinessAlert'], label='Buồn ngủ', color='red')
-    ax3.plot(df['Timestamp'], df['YawnAlert'], label='Ngáp', color='orange')
-    ax3.set_title("Cảnh báo buồn ngủ / ngáp")
-    ax3.legend()
-    ax3.tick_params(axis='x', rotation=45)
+
+    ax3.step(df['Timestamp'], df['DrowsinessAlert'].astype(int), where='post', label='Buồn ngủ', color='red')
+    ax3.step(df['Timestamp'], df['YawnAlert'].astype(int), where='post', label='Ngáp', color='orange')
+
+    ax3.set_title("Cảnh báo buồn ngủ và ngáp")
+    ax3.set_ylabel("Cảnh báo")
     ax3.set_yticks([0, 1])
     ax3.set_yticklabels(['Không', 'Có'])
+    ax3.legend()
+    ax3.grid(True)
+    ax3.tick_params(axis='x', rotation=45)
+
     fig3.tight_layout()
     add_plot(fig3, scrollable_frame)
 
